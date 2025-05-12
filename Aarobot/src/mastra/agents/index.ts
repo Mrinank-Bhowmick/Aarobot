@@ -1,55 +1,73 @@
 import { Agent } from "@mastra/core/agent";
 import { createTool } from "@mastra/core/tools";
 import { google } from "@ai-sdk/google";
+import { generateText } from "ai";
 import { z } from "zod";
 
-const fetchOpenFoodFactsTool = createTool({
-  id: "fetch-open-food-facts",
-  description: "Fetches food ingredient details from the Open Food Facts API.",
-  inputSchema: z.object({
-    productQuery: z
-      .string()
-      .describe("Product name or barcode to search on Open Food Facts"),
-  }),
-  outputSchema: z.object({
-    ingredients: z
-      .string()
-      .describe(
-        "Ingredient details from Open Food Facts, or an error message."
-      ),
-  }),
-  execute: async ({ context }) => {
-    console.log(
-      `Simulating Open Food Facts API call for: ${context.productQuery}`
-    );
-    const simulatedIngredients = `Simulated ingredients for '${context.productQuery}': Organic Oats, Water, Sea Salt. Allergens: Gluten. (Note: This is simulated data.)`;
-    return { ingredients: simulatedIngredients };
-  },
-});
-
 const productSafetyAgent = new Agent({
-  name: "ProductSafetyAgent",
+  name: "Product Safety Agent",
   instructions:
-    "You are a specialized agent for product safety. Given a product query (e.g., product name or barcode), use the 'fetch-open-food-facts' tool to get its ingredient details from Open Food Facts and return only these details.",
+    "You are a product safety agent. Your task is to assess whether a product is harmful or not based on its ingredients and a health profile (e.g., diabetes).",
   model: google("gemini-2.5-flash-preview-04-17"),
-  tools: { fetchOpenFoodFactsTool },
 });
 
 const productSafetyTool = createTool({
-  id: "product-safety-tool",
-  description:
-    "Calls the ProductSafetyAgent to fetch food ingredient details using a product name or barcode.",
+  id: "assess-product-harm",
+  description: "Calls the product safety agent to check product safety.",
   inputSchema: z.object({
-    productQuery: z.string().describe("Product name or barcode"),
+    product_code: z
+      .string()
+      .describe(
+        "The name of the product or label to evaluate for potential harm."
+      ),
   }),
   outputSchema: z.object({
-    ingredientDetails: z.string().describe("Food ingredient details"),
+    assessment: z
+      .string()
+      .describe("The harm assessment for the product, or an error message."),
   }),
   execute: async ({ context }) => {
-    const result = await productSafetyAgent.generate(
-      `Fetch ingredient details for the product: ${context.productQuery}.`
-    );
-    return { ingredientDetails: result.text };
+    const { product_code } = context;
+    try {
+      const url = `https://world.openfoodfacts.net/api/v2/product/${product_code}?fields=product_name,ingredients_text`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        return {
+          assessment: `Error fetching product data from Open Food Facts: ${response.status} ${response.statusText}`,
+        };
+      }
+
+      const data = await response.json();
+
+      if (
+        !data.product ||
+        (!data.product.ingredients_text && !data.product.product_name)
+      ) {
+        return {
+          assessment: `Product with code '${product_code}' not found or does not have ingredient information on Open Food Facts.`,
+        };
+      }
+
+      const ingredients =
+        data.product.ingredients_text || "No ingredients listed.";
+      const product_name = data.product.product_name || "Unknown Product";
+      const health_history = "diabetes";
+
+      const result = await productSafetyAgent.generate(`
+          I have the following health issues: ${health_history} \n\nIngredients: ${ingredients} \n\nProduct Name(Product code): ${product_name}(${product_code})  
+        `);
+      const responseText = result.text;
+      return { assessment: responseText };
+    } catch (e: any) {
+      console.error(
+        `Error in assess-product-harm tool for ${product_code}:`,
+        e
+      );
+      return {
+        assessment: `Error while assessing harm for product ${product_code}: ${e.message}`,
+      };
+    }
   },
 });
 
@@ -63,7 +81,7 @@ const conversationalAgent = new Agent({
 export const Aarobot = new Agent({
   name: "Aarobot",
   instructions:
-    "You are Aarobot, a healthcare assistant. You have access to two tools: \n1. 'product-safety-tool': Use this to fetch food ingredient details when the user asks about a specific product (provide its name or barcode). \n2. 'conversational-tool': Use this for general, day-to-day conversation. \nBased on the user's query, decide which tool is appropriate and use it. If asked about ingredients, state that you are fetching them and then provide the details. For conversation, just chat naturally.",
+    "You are Aarobot, a healthcare assistant. You have access to two tools: \n1. 'productSafetyTool' (with ID 'assess-product-harm'): Use this to determine if a product is harmful when the user provides its name or barcode. This tool considers a predefined health profile (diabetes). \n2. 'conversational-tool': Use this for general, day-to-day conversation. \nBased on the user's query, decide which tool is appropriate. If asked about product safety, state that you are assessing it and then provide the assessment. For conversation, just chat naturally.", // Updated instructions
   model: google("gemini-2.5-flash-preview-04-17"),
   tools: { productSafetyTool },
 });
