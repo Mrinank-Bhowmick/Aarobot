@@ -1,18 +1,16 @@
-
-import { Mastra } from '@mastra/core/mastra';
-import { createLogger } from '@mastra/core/logger';
-import { LibSQLStore } from '@mastra/libsql';
-
-import { weatherAgent } from './agents';
+import { Mastra } from "@mastra/core/mastra";
+import { createLogger } from "@mastra/core/logger";
+import { Aarobot } from "./agents";
+import { D1Store } from "@mastra/cloudflare-d1";
+import { LibSQLStore } from "@mastra/libsql";
 
 export const mastra = new Mastra({
-  agents: { weatherAgent },
-  storage: new LibSQLStore({
-    // stores telemetry, evals, ... into memory storage, if it needs to persist, change to file:../mastra.db
-    url: ":memory:",
-  }),
+  agents: { Aarobot },
   logger: createLogger({
-    name: 'Mastra',
-    level: 'info',
+    name: "Mastra",
+    level: "info",
+  }),
+  storage: new LibSQLStore({
+    url: "file:./mastra.db",
   }),
 });
