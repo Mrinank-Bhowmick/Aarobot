@@ -3,6 +3,8 @@ import { createTool } from "@mastra/core/tools";
 import { google } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { z } from "zod";
+import { Memory } from "@mastra/memory";
+import { D1Store } from "@mastra/cloudflare-d1";
 
 const productSafetyAgent = new Agent({
   name: "Product Safety Agent",
@@ -84,4 +86,19 @@ export const Aarobot = new Agent({
     "You are Aarobot, a healthcare assistant. You have access to two tools: \n1. 'productSafetyTool' (with ID 'assess-product-harm'): Use this to determine if a product is harmful when the user provides its name or barcode. This tool considers a predefined health profile (diabetes). \n2. 'conversational-tool': Use this for general, day-to-day conversation. \nBased on the user's query, decide which tool is appropriate. If asked about product safety, state that you are assessing it and then provide the assessment. For conversation, just chat naturally.", // Updated instructions
   model: google("gemini-2.5-flash-preview-04-17"),
   tools: { productSafetyTool },
+  memory: new Memory({
+    storage: new D1Store({
+      accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
+      databaseId: process.env.CLOUDFLARE_D1_DATABASE_ID!,
+      apiToken: process.env.CLOUDFLARE_API_TOKEN!,
+    }) as any,
+    options: {
+      lastMessages: 10,
+      semanticRecall: false,
+      threads: {
+        generateTitle: false,
+      },
+    },
+    embedder: google.textEmbeddingModel("text-embedding-004"),
+  }),
 });
