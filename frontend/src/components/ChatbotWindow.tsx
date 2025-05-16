@@ -1,4 +1,4 @@
-// ChatbotWindow.tsx
+"use client"
 import { useState, useRef, useEffect } from "react";
 import { Card } from "./ui/card";
 import { Input } from "./ui/input";
