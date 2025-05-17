@@ -121,6 +121,3 @@
   }
 }
 
-#reader video {
-  transform: scaleX(-1);
-}

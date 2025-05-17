@@ -44,8 +44,8 @@ const startScanner = async () => {
       .start(
         { facingMode: "environment" }, // Use the back camera
         {
-          fps: 50, // Frame per second
-          qrbox: { width: 450, height: 350 }, // Scanning box size
+          fps: 10, // Frame per second
+          qrbox: { width: 250, height: 250 }, // Scanning box size
         },
         (decodedText) => {
           handleInputChange({
